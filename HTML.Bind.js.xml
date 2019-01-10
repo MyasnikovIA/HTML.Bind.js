@@ -1,0 +1,1219 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25" zv="Cache for Windows (x86-64) 2018.1 (Build 184)" ts="2019-01-10 13:50:59">
+<Class name="HTML.Bind.js">
+<Description><![CDATA[
+<br> <!--  <script language="JavaScript" type="text/javascript" src="HTML.Bind.js.cls"></script>  -->
+<!-- <script language="JavaScript" type="text/javascript" src="#($SYSTEM.CSP.GetDefaultApp($ZU(5)))#/#($zcvt("HTML.Bind.js","O","URL"))#.cls"></script>  -->
+<br> <script language="JavaScript" type="text/javascript" src="HTML.Bind.js.cls/?include=#(##this)#"></script>]]></Description>
+<Super>%CSP.Page</Super>
+<TimeChanged>64974,47530.666897</TimeChanged>
+<TimeCreated>64789,52145.44498</TimeCreated>
+
+<Parameter name="CodePage">
+<Description><![CDATA[
+<br>   s %response.CharSet="CP1251" 
+<br>   "CP1251" или "UTF-8"
+Parameter CodePage = "UTF-8";]]></Description>
+<Default>UTF-8</Default>
+</Parameter>
+
+<Method name="OnPreHTTP">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Library.Boolean</ReturnType>
+<Implementation><![CDATA[
+     if ##this'="HTML.Bind.js"{ 
+        Do %response.SetHeader("Content-Type","text/html")   
+        q 1 
+      }
+     if $l(%request.GetCgiEnv("Cache port",""))=0{ // Запуск из %ZWeb.Server
+        
+         if $p($replace($$GetVersion^%apiOBJ(),"Cache Objects Version ",""),".",1)="2013"{;
+	 	   s %response.CharSet="UTF-8"  
+	     }else{
+	       s %response.CharSet="CP1251"  
+         }
+        
+     }
+     if %request.Get("cspIntRunMethod",0)=1 {
+	     if %response.ContentType="text/html" {
+            Do %response.SetHeader("Content-Type","text/plain")   
+	     }
+         q 1   
+     }
+     Do %response.SetHeader("Content-Type","application/javascript")   
+     q 1
+]]></Implementation>
+</Method>
+
+<Method name="OnPage">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+  
+  
+  /// Подключение класса и интерпритация его как JS библиотек
+  if %request.Get("include","")'=""{
+	   s ClassCSP=%request.Get("include","")
+  	   s ClassCSP=$tr(ClassCSP," ","")
+       k filtr
+	   for ind=1:1:$l(ClassCSP,","){
+          // Если класс есть, тогда интерпритируем 
+	      if $zObjClassMethod("%CompiledClass","%ExistsId",$p(ClassCSP,",",ind))=1 {
+	             d $system.OBJ.GetDependencies($p(ClassCSP,",",ind),.included)
+                 s ClassParentTmp=""
+                 for {
+                    s ClassParentTmp=$o(included(ClassParentTmp))
+                    q:ClassParentTmp=""
+                    continue:$d(filtr(ClassParentTmp))
+                    d ..readJSFunctionFromCacheClass(ClassParentTmp)
+                    s filtr(ClassParentTmp)=1
+                } 
+	     }else{
+		    // иначе проверяем есть ли такой пакет, и добавляем весь пакет
+		    s ClassTmpPacket=""
+		    for {
+		         s ClassTmpPacket=$o(^oddDEF(ClassTmpPacket))
+		         q:ClassTmpPacket=""  
+		         if $e(ClassTmpPacket,1,$l($p(ClassCSP,",",ind)))=$p(ClassCSP,",",ind){
+ 	                 d $system.OBJ.GetDependencies(ClassTmpPacket,.included)
+                     s ClassParentTmp=""
+                     for {
+                        s ClassParentTmp=$o(included(ClassParentTmp))
+                        q:ClassParentTmp=""
+                        continue:$d(filtrObj(ClassParentTmp))
+                        d ..readJSFunctionFromCacheClass(ClassParentTmp)
+                        s filtrObj(ClassParentTmp)=1
+                     } 
+		         }
+		    }  
+	     }
+	   }
+	   q 1   
+    }
+	
+    /// Вычитываем тело POST запроса
+	s json=""
+	if $isobject(%request.Content){
+	   for {
+		  q:%request.Content.AtEnd
+	      s json=json_%request.Content.Read(32000)	     
+	   }	
+	
+	
+	}
+	s ParentClass=""
+    s:$d(%request.CgiEnvs("HTTP_REFERER")) ParentClass= $SYSTEM.CSP.GetClassName(%request.CgiEnvs("HTTP_REFERER"))
+    s:ParentClass="" ParentClass=%request.Get("ParentClass","")
+	s:ParentClass="" ParentClass=##THIS
+	do ##class(%ZEN.Auxiliary.jsonProvider).%ConvertJSONToObject(json,,.%override,1)
+	
+    if %override'="" {
+	    s TestWebMethod=0
+	    s ^||WEVENT=%override.GetAt(1)
+        if $l(^||WEVENT,".")'=1  { 
+           S TestWebMethod=1
+        }else{
+            s ^||WEVENT=$lg($$$cspDecode(%session.Key,^||WEVENT),1) 
+            s ^||WEVENT=$p(^||WEVENT,":",1) ; ????
+        }
+        s %method=$p(^||WEVENT,".",$l(^||WEVENT,"."))
+        s %class=$e(^||WEVENT,1,$l(^||WEVENT)-$l(%method)-1)
+        IF TestWebMethod=1 {
+           q:'$d(^oddDEF(%class,"m",%method,51)) 1
+           q:^oddDEF(%class,"m",%method,51)'=1 1
+        }
+        
+        if %class="."{
+          s %class=ParentClass
+        }
+        d ..ExecRunMethod(%override)
+        q 1
+    }
+	
+	
+	 if ##this'="HTML.Bind.js"{	 
+	     &html<
+	       <script language="JavaScript" type="text/javascript" src="HTML.Bind.js.cls"></script> 
+           <script language="JavaScript" type="text/javascript" src="HTML.Bind.js.cls?include=#(##this)#"></script> 
+         >
+         ; Поиск Xdata с формой DFM 
+         s ClassName=##This,XdataName="Form"
+         s GL="^oddDEF("""_ClassName_""",""x"","""_XdataName_""",21)"  
+         if $d(@GL){  
+            w ##class(HTML.Bind.js).ParseDFM(ClassName_":"_XdataName) 
+         }
+	     d ..main()
+	     q 1
+	 }
+	
+     s ParentClassName1=##this
+     // zw ^oddDEF(ParentClassName1)
+     &js<
+        var windowhashtablist={}; 
+     >
+
+
+     s MethodName=""
+     for {
+	     s MethodName=$o(^oddDEF(ParentClassName1,"m",MethodName))
+         q:MethodName=""
+         continue:MethodName="init"
+         
+         if $d(^oddDEF(ParentClassName1,"m",MethodName,70)) {
+
+             if $d(^oddDEF(ParentClassName1,"m",MethodName,4)){
+	           w !,"/*",!
+	           w ^oddDEF(ParentClassName1,"m",MethodName,4)
+	           w "*/"
+             }
+	         w !,"  "_MethodName_" = function(" 
+	         if $d(^oddDEF(ParentClassName1,"m",MethodName,27)){
+		         w ^oddDEF(ParentClassName1,"m",MethodName,27)
+	         }
+	         w "){"
+	         
+             for ind=1:1:^oddDEF(ParentClassName1,"m",MethodName,30) {
+	             d ..ExecFrag(^oddDEF(ParentClassName1,"m",MethodName,30,ind),"/*(",")*/")
+	             w $c(13,10)
+                 // w ^oddDEF(ParentClassName1,"m",MethodName,30,ind)_$c(13,10)
+             }
+             w "}"
+         }
+     }
+      
+     s MethodName="init"
+     for ind=1:1:^oddDEF(ParentClassName1,"m",MethodName,30) {
+               w ^oddDEF(ParentClassName1,"m",MethodName,30,ind)_$c(13,10)
+     }
+     
+     &js<
+         var cspHttpServerMethod=SendServer;
+         ObjectBind=function(JsClassName,ClassName,id){
+             var obj=#server(..readObject(ClassName,id))# ;
+             // console.log(obj);
+             obj=JSON.parse(obj)
+             console.log(obj);
+             if(obj.length!=0){
+               JsonBuild(obj[0],JsClassName);
+             }
+         }
+         
+         ObjectSave=function(JsClassName,ClassName){
+	          var texts=readJson(JsClassName,'id');    
+	          var jsonSTR=JSON.stringify(texts)
+	          console.log(jsonSTR);
+              var res=#server(..saveObject(ClassName,jsonSTR))# ;
+              console.log(res)
+         }
+     >
+       s ClassCSP=ParentClass
+       k filtr
+	   for ind=1:1:$l(ClassCSP,","){
+	      d $system.OBJ.GetDependencies($p(ClassCSP,",",ind),.included)
+          s ClassParentTmp=""
+          for {
+            s ClassParentTmp=$o(included(ClassParentTmp))
+            q:ClassParentTmp=""
+            continue:$d(filtr(ClassParentTmp))
+            d ..readJSFunctionFromCacheClass(ClassParentTmp)
+            s filtr(ClassParentTmp)=1
+          } 
+	   }
+     Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="main">
+<ClassMethod>1</ClassMethod>
+</Method>
+
+<Method name="readObject">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ClassName="",id=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	d ..WriteSqlJson("select * from "_ClassName_" where id="_id)
+	q ""
+]]></Implementation>
+</Method>
+
+<Method name="GetType">
+<Description>
+w ##class(HTML.Bind.js).GetType("Address.ESettle","ARegion")</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ClassName="",propertyName=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	 if $d(^oddDEF(ClassName,"a",propertyName,5)){
+		 s typ=^oddDEF(ClassName,"a",propertyName,5)
+		 if $l(typ,".")=1 {
+			 if $l(typ,"%")=2 {
+			    s typ=$replace(typ,"%","%Library.")	 
+			 }else{
+			   s typ="User."_typ	 
+			 }
+		 }
+		 q typ
+	 }else{
+	    if $d(^oddDEF(ClassName,60)){
+	       w ..GetType(^oddDEF(ClassName,60),propertyName)
+	    }else{
+		 q ""   
+	    }
+	 }
+     q ""
+]]></Implementation>
+</Method>
+
+<Method name="saveObject">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ClassName="",json=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+  do ##class(%ZEN.Auxiliary.jsonProvider).%ConvertJSONToObject(json,,.override,1)
+  s isNewObj=0
+  
+  if $d(override.%data("ID")){
+	 s isNewObj=0
+	 s ObjId=override.%data("ID")
+     if ObjId="" { s isNewObj=1  }	 
+  }else{
+	s isNewObj=1
+  }
+  
+  if isNewObj=0{
+    s obj= $classmethod(ClassName,"%OpenId",ObjId)
+  }else{
+    s obj= $classmethod(ClassName,"%New")
+  }
+  s Property=""
+  for {
+	  s Property=$o(override.%data(Property))
+	  q:Property=""
+	  continue:Property="ID"
+	  s PropertyType=..GetType(ClassName,Property)
+	  ; w !,PropertyType_"  "_Property_"   "_override.%data(Property)
+	  if $l(PropertyType,"%Library.")=2 {
+	 	  if $l(PropertyType,"%Library.Date")=2 {
+		 	 if override.%data(Property)="" s $zObjProperty(obj,Property)="" continue
+	 	     s $zObjProperty(obj,Property)=$zdh(override.%data(Property),4)    continue
+	 	  } else {
+	 	     s $zObjProperty(obj,Property)=override.%data(Property)
+	 	  }
+	  }else{
+	       s SubId=override.%data(Property)
+		  if $l($tr(SubId,"0123456789."))=0 {
+		     s SubObj= $classmethod(PropertyType,"%OpenId", SubId)
+		     s $zObjProperty(obj,Property)=SubObj
+		  }else{
+             do ##class(%ZEN.Auxiliary.jsonProvider).%ConvertJSONToObject(SubId,,.SubOverride,1)
+             /// !!! ДОПИСАТЬ рекурсивную инициализацию объекта и сохранение его!!!
+             zw SubOverride
+		  }
+	  }
+  }
+  d obj.%Save()
+  w obj.%Id()
+  q ""
+]]></Implementation>
+</Method>
+
+<Method name="WriteSqlJson">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>SqlStr:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+      if $l(SqlStr)=0 w "[]" q ""
+      s SqlStrTmp=$ZCVT(SqlStr,"L")
+      q:$l(SqlStrTmp,"insert")>1 "[]"
+      q:$l(SqlStrTmp,"update")>1 "[]"
+      q:$l(SqlStrTmp,"delete")>1 "[]"
+      q:$l(SqlStrTmp,"create ")>1 "[]"
+      q:$l(SqlStrTmp,"alter ")>1 "[]"
+      q:$l(SqlStrTmp,"drop ")>1 "[]"
+      q:$l(SqlStrTmp,"call ")>1 "[]"
+      s $ztrap="ztError"
+      s SQLobj=##class(%SQL.Statement).%New()
+      d SQLobj.%Prepare(SqlStrTmp)
+      s DataSet=SQLobj.%Execute()
+      s QMeta=DataSet.%GetMetaData()
+      s jsonTab = ##class(%Library.ListOfDataTypes).%New()
+      s countRaw=0
+      w "["
+      while DataSet.%Next()
+      {
+        s countRaw=countRaw+1
+        w:countRaw>1 ","
+        w:QMeta.columnCount>1 "{"
+         for ColNum=1:1:QMeta.columnCount
+         {
+            w:ColNum>1 ","
+            s val=DataSet.%GetData(ColNum)
+            s nam=QMeta.columns.GetAt(ColNum).colName
+            s typ=QMeta.columns.GetAt(ColNum).ODBCType
+            if QMeta.columnCount>1  w """"_$zcvt(nam,"O","JS")_""":"
+            if typ=9 { // число
+               if val="" w """",""""   continue
+               if val=0 w """",""""   continue
+               w """"_$zd(+val,4)_"""" continue
+            }
+            if typ=12 { // текст
+                w """"_$zcvt(val,"O","JS")_""""
+               continue
+            }
+          ;  if typ=2 { // сылка на объект
+	      ;     w val
+	      ;     continue
+          ;  }
+          ;  if typ=-7 { // Bool
+          ;    w val
+          ;    continue
+          ;  }
+            
+            if val="" {
+                 w """"
+                 w """"
+            }elseif (+val=val) {
+                 w $zcvt(val,"O","JS")
+                ; w $zcvt(val,"O","JS")
+             }elseif (val="") {
+                w "null"
+             }else{
+                 w """"_$zcvt(val,"O","JS")_""""
+                ; w """"_$zcvt(val,"O","JS")_""""
+             }
+         }  
+        w:QMeta.columnCount>1 "}"
+      }
+     w "]"
+     q
+ztError   
+    w "[]"
+    q ""
+]]></Implementation>
+</Method>
+
+<Method name="init">
+<Description>
+Функция инициализации</Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+ 
+ // ""
+]]></Implementation>
+</Method>
+
+<Method name="SendServer">
+<FormalSpec>MethodName</FormalSpec>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+    var arr=new Array();
+    if ((''+SendServer.arguments[1])=='[object Arguments]'){
+       arr.push(SendServer.arguments[0]);     
+       for(var ind in SendServer.arguments[1]){if (SendServer.arguments[1][ind]==undefined){continue;} arr.push(SendServer.arguments[1][ind]); }   
+    }else{
+       for(var ind in SendServer.arguments){if (SendServer.arguments[ind]==undefined){continue;} arr.push(SendServer.arguments[ind]); }   
+    }
+    var requestSendServer = new XMLHttpRequest();
+    requestSendServer.open('POST', '/*(   w $SYSTEM.CSP.GetDefaultApp($ZU(5))_"/"_$zcvt("HTML.Bind.js","O","URL")_".cls"  )*/', false);
+    //console.log(arr);
+    requestSendServer.send(JSON.stringify(arr));  
+    requestSendServer.ontimeout = function (e) {
+          alert('Время ожидания ответа вышло!!!!');
+    }
+    if (requestSendServer.status !== 200) {
+        return {"error":requestSendServer.status}
+    }
+    return requestSendServer.responseText;
+]]></Implementation>
+</Method>
+
+<Method name="toJson">
+<Description>
+
+преобразовать элемент в JSON строку
+</Description>
+<FormalSpec>arg</FormalSpec>
+<Language>javascript</Language>
+<WebMethod>1</WebMethod>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+     var str='';
+     var arr= new Array();
+     var objRes={};
+     var EofList=['srcElement','childElementCount','namespaceURI','nodeType','baseURI','path','formAction','offsetParent','namespaceURI','outerHTML','previousElementSibling','nextElementSibling','children','firstChild','lastChild','ownerDocument','childNodes','outerText','outerHTML','localName','scrollTop','scrollLeft','scrollWidth','scrollHeight','wordBreak','wordSpacing','wordWrap'];
+     var SubObjList=['style','attributes','dataset'];
+     for(var ind in arg){
+          if (typeof arg[ind] ==='function'){continue;}
+          if (ind.substring(0,2)=='on'){continue;}
+          if (ind.indexOf('_')!=-1){continue;}
+          if ((ind+'').indexOf('parent')!=-1){continue;}
+          if ((ind+'').indexOf('webkit')!=-1){continue;}
+          if ((ind+'').indexOf('word')!=-1){continue;}
+          if ((ind+'').indexOf('isConnected')!=-1){continue;}
+          if (EofList.indexOf(ind)!=-1){continue;}
+         if (SubObjList.indexOf(ind)!=-1){
+              var subObj={};
+            for(var indSub in arg[ind]){
+                 if (typeof arg[ind][indSub] ==='function'){continue;}
+               if ((indSub+'').indexOf('webkit')!=-1){continue;}
+               if ((indSub+'').indexOf('word')!=-1){continue;}
+               if ((indSub+'').indexOf('transition')!=-1){continue;}
+               if ((''+arg[ind][indSub])==''){continue;}
+                 subObj[indSub]=''+arg[ind][indSub];
+            }
+            objRes[ind]=subObj;
+            continue;
+         }
+
+          if (typeof arg[ind] ==='object'){continue;};
+         objRes[ind]=arg[ind];
+     }
+     /* document.getElementById("info").innerHTML=JSON.stringify(objRes);*/
+     return objRes;
+]]></Implementation>
+</Method>
+
+<Method name="JsonBuild">
+<Description><![CDATA[
+<br> <font color="#000000">Поместить JSON объект в HTML элементы</font><br>
+<br>   &lt;input class="dat" ID='Param1'&gt;
+<br>   &lt;input class="dat" id='Param2'&gt;
+<br>   &lt;input class="dat" id='Param3'&gt;
+<br>   &lt;script language="javascript"&gt;
+<br>       jsonObj={'Param1':111,'Param2':'000','Param3':999};
+<br>       JsonBuild(jsonObj,'dat'); // поместить JSON в HTML элементы
+<br>   &lt;/script&gt;
+<br> ]]></Description>
+<FormalSpec>JsonObject,ClassName,IdName,ParamName</FormalSpec>
+<Language>javascript</Language>
+<WebMethod>1</WebMethod>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+      var JsonObjectStr=JSON.stringify(JsonObject)
+      if ((''+IdName)=='undefined'){IdName='id';}
+      var elements= document.querySelectorAll('.'+ClassName);
+         for (var ind  in elements) {
+              if ((''+parseInt(''+ind))=='NaN'){continue; }     
+              //SQL
+              var query=elements[ind].getAttribute("query")
+              if (query!=null){
+                 // tagName
+              }
+              
+              var id=elements[ind].getAttribute(IdName);
+              if ((''+id)=='undefined'){continue; }
+              if ((''+ParamName)!='undefined'){ 
+                  if (ParamName!= elements[ind].getAttribute(IdName)){ continue; }   
+              }
+              
+              if (JsonObjectStr.indexOf('"'+id+'":')!=-1){
+                 val=elements[ind].value;
+                 if ((''+val)=='undefined'){
+                   NewVal=decodeURI(JsonObject[id]);
+                   OldVal=elements[ind].innerHTML;
+                   if (NewVal!=OldVal){
+                       if (elements[ind].type=='checkbox'){
+                         elements[ind].checked = (NewVal==1);
+                       }else{
+	                     elements[ind].innerHTML=NewVal; 
+                       }
+                   }
+                    if (typeof JsonBuildWatch == "undefined"){ JsonBuildWatch=function(){ }}
+                    elements[ind].removeEventListener("change", JsonBuildWatch, false);
+                    elements[ind].addEventListener("change", function JsonBuildWatch() {
+                       ParamNamFromId=this.getAttribute(IdName);
+                       JsonObject[ParamNamFromId]=encodeURI(this.innerHTML)
+                       JsonBuild(JsonObject,ClassName); // Запускаем перерисовку всего объекта
+                    });
+                 }else{
+                    NewVal=decodeURI(JsonObject[id]);
+                    OldVal=elements[ind].value;
+                    if (NewVal!=OldVal){
+                       if (elements[ind].type=='checkbox'){
+	                        elements[ind].checked = (NewVal==1);
+                       }else{
+	                      elements[ind].value=NewVal;
+                       }
+                    }
+                    
+                    if (typeof JsonBuildWatch == "undefined"){ JsonBuildWatch=function(){ }}
+                    elements[ind].removeEventListener("change", JsonBuildWatch, false);
+                    elements[ind].addEventListener("change", function JsonBuildWatch() {
+                       // SubParList.SubPar
+                       ParamNamFromId=this.getAttribute(IdName);
+                       JsonObject[ParamNamFromId]=encodeURI(this.value)
+                       JsonBuild(JsonObject,ClassName); // Запускаем перерисовку всего объекта
+                    });
+                 }
+              }
+         }
+]]></Implementation>
+</Method>
+
+<Method name="readJson">
+<Description><![CDATA[
+<pre> 
+ Функция вычитывает значения из формы в JSON объект
+<basefont name="Courier New"><basefont name="Courier New">&nbsp; &nbsp;<font color="#000000">&lt;</font><font color="#ff0000">input&nbsp;</font><font color="#000080">class</font><font color="#000000">=</font><font color="#800080">'dat'&nbsp;</font><font color="#000080">ID</font><font color="#000000">=</font><font color="#800080">'Param1'</font><font color="#000000">&gt; </font><br>
+&nbsp;&nbsp;<font color="#000000">var texts=readJson('dat','id'); // 'dat'- имя применяемого класса стиля</font><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#000000">// 'id' - имя атрибута значение которого пойдет в имя поля</font><br>
+</pre> ]]></Description>
+<FormalSpec>NameClass,IdName</FormalSpec>
+<Language>javascript</Language>
+<WebMethod>1</WebMethod>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+ if ((''+IdName)=='undefined'){ IdName='id';}
+            var elements= document.querySelectorAll('.'+NameClass);
+            var texts={}; 
+            var indRes=0
+            for (var ind  in elements) {
+                   if ((''+parseInt(''+ind))=='NaN'){continue; }
+                   var id=elements[ind].getAttribute(IdName);
+                   if (elements[ind].type=='checkbox'){
+                      if (elements[ind].checked==true){
+	                    val=1
+                      }else{
+	                    val=0
+                      }
+                   }else{ 
+                     val=elements[ind].value;
+                   }
+                   console.log(val);
+                   if ((''+val)=='undefined'){
+                       val=encodeURI(elements[ind].innerHTML); 
+                   }
+                   if ((''+id)=='undefined'){continue; }
+                   if ((''+id)=='null'){continue; }
+                   if ((''+id)==''){continue; }
+                   if ((''+elements[ind])=='[object HTMLSelectElement]'){
+	                  if (elements[ind]['multiple']==true){
+ 	                      texts[id]=[];
+	                      for (var i=0; i < elements[ind].options.length; i++) {
+                             if (elements[ind].options[i].selected) {
+                               var valEl ;
+                               if (elements[ind].options[i].type=='checkbox'){
+                                 if (elements[ind].options[i].checked==true){
+	                                val=1
+                                 }else{
+	                                val=0
+                                 }
+                              }else{ 
+                                valEl=elements[ind].options[i].value;
+                              }
+                              texts[id].push(valEl);
+                             }
+                          }
+ 	                      continue;
+                      }
+                   }
+                   if ((''+val)=='undefined'){continue;}
+                   indRes++;
+                   texts[id]=val;
+            }
+            return texts;
+]]></Implementation>
+</Method>
+
+<Method name="sleep">
+<Description>
+Пауза в программе</Description>
+<FormalSpec>sleepDuration</FormalSpec>
+<Language>javascript</Language>
+<WebMethod>1</WebMethod>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+   var now = new Date().getTime();
+   while(new Date().getTime() < now + sleepDuration){ /* do nothing */ }
+]]></Implementation>
+</Method>
+
+<Method name="ExecRunMethod">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>override:%Library.ListOfDataTypes</FormalSpec>
+<Implementation><![CDATA[
+     Set count=override.Count()-1
+     set args=count
+     s numArg=0
+     for j=2:1:override.Count(){
+ 	    s numArg=numArg+1
+        set args(numArg) = $zcvt(override.GetAt(j),"i","UTF8")
+     }
+     if '$d(^oddDEF(%class,"m",%method,70)) {
+        if '$d(^oddDEF(%class,"m",%method,42)) {
+           do $classmethod(%class, %method, args...)
+        } Else {
+            w $classmethod(%class, %method, args...)
+        }
+     }else{
+        if $d(^oddDEF(%class,"m",%method,30)){
+          for ind=1:1:^oddDEF(%class,"m",%method,30){
+             w:ind'=1 $c(13,10)
+              d ..ExecFrag(^oddDEF(%class,"m",%method,30,ind),"/*(",")*/")
+          }
+        }
+     }
+     q
+]]></Implementation>
+</Method>
+
+<Method name="ExecFrag">
+<Description>
+Метод разбики исходного текста на Cache` код и HTML текст</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>SrcCode="",Beg="",End=""</FormalSpec>
+<Implementation><![CDATA[    q:SrcCode=""   q:Beg=""    q:End=""    for ExecFragInd=1:1:$l(SrcCode,End){  s tmp=$p(SrcCode,End,ExecFragInd)   s Html=$p(tmp,Beg,1)     s Code=$p(tmp,Beg,2)   w Html   TRY {     x Code    } CATCH ErrorHandle {    zw ErrorHandle  }    }
+]]></Implementation>
+</Method>
+
+<Method name="option">
+<Description><![CDATA[
+ 
+  #(##class(HTML.Bind.js).option("SELECT tochar(ID) as  VALUE, Name As TEXT FROM Address.ESettle ORDER BY Type, Name") )#
+     <select class='dat2' id='Settle'>
+  	     <option  value=''></option>
+  	     #(##class(HTML.Bind.js).option("SELECT tochar(ID) as  VALUE, Name As TEXT FROM Address.ESettle ORDER BY Type, Name") )#
+  	  </select>]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>SQLStr="",SelectVal=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	        s:SelectVal'="" SelectVal=$zcvt(SelectVal,"L")
+            s SQLobj=##class(%SQL.Statement).%New()
+            d SQLobj.%Prepare(SQLStr)
+            s DataSet=SQLobj.%Execute()
+            s QMeta=DataSet.%GetMetaData()
+            while DataSet.%Next()
+            {
+	           s TEXT="" 
+               w " <option " 
+               for ColNum=1:1:QMeta.columnCount {
+                 s nam=QMeta.columns.GetAt(ColNum).colName
+                 s val=DataSet.%GetData(ColNum)
+                 if $zcvt(nam,"L")="text" { 
+                    s TEXT=val
+                    continue
+                 }
+                 if SelectVal'="",$zcvt(nam,"L")="value" { 
+                   if SelectVal=$zcvt(val,"L"){
+                      w ""_$select(($zcvt(val,"L") = $zcvt(SelectVal,"L")):"selected", 1:"") 
+                   }
+                 }
+                 w "  "_nam_"="""_$REPLACE(val,"""","\""")_""" "
+               }  
+               if TEXT=""  {  
+                  w " /> "
+               }else{
+                  w " >"_TEXT_"</option>" 
+               }
+            }
+           do DataSet.%Close()
+           do SQLobj.%Close()	
+           q ""
+]]></Implementation>
+</Method>
+
+<Method name="select">
+<Description>
+  #(  ##class(HTML.Bind.js).select("  class='dat2' id='Settle' ","SELECT tochar(ID) as  VALUE, Name As TEXT FROM Address.ESettle ORDER BY Type, Name")  )#</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Param="  class='dat2' id='Settle' ",SQLStr=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	&html<  <select #(Param)#>  > 
+	d ..option(SQLStr = "") 
+	&html<  </select>  > 
+	q ""
+]]></Implementation>
+</Method>
+
+<Method name="readJSFunctionFromCacheClass">
+<Description><![CDATA[
+<pre>
+
+Варианты параметров классов 
+ 1) [ Language = cache, WebMethod ]
+ 2) [ Language = javascript, WebMethod ]
+
+Пример классов , которые будут интерпритированы в JS функции:
+    ClassMethod test2()as %String [ Language = cache, WebMethod ]{ zw  q ""}
+    ClientMethod test3() [ Language = javascript, WebMethod ]{    alert('test3()');}
+    Property cspXMLHttp As %String [ ServerOnly = 1 ];
+    Property cspUseGetMethod As %Boolean [ InitialExpression = 0, ServerOnly = 1 ];
+    Property cspMozilla As %Boolean [ InitialExpression = "nill", ServerOnly = 1 ];
+   
+</pre>
+ <h2>Переписать  %Library.ClassDefinition на  <h2>]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ParentClassName="",MethodName="",DrawDescript=1</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+     s onEventFun=",onblur,onerror,onfocus,onload,onresize,onscroll,onbeforeunload,onhashchange,onlanguagechange,onmessage,onoffline,ononline,onpagehide,onpageshow,onpopstate,onrejectionhandled,onstorage,onunhandledrejection,onunload,onabort,oncancel,oncanplay,oncanplaythrough,onchange,onclick,onclose,oncontextmenu,oncuechange,ondblclick,ondrag,ondragend,ondragenter,ondragleave,ondragover,ondragstart,ondrop,ondurationchange,onemptied,onended,oninput,oninvalid,onkeydown,onkeypress,onkeyup,onloadeddata,onloadedmetadata,onloadstart,onmousedown,onmouseenter,onmouseleave,onmousemove,onmouseout,onmouseover,onmouseup,onmousewheel,onpause,onplay,onplaying,onprogress,onratechange,onreset,onseeked,onseeking,onselect,onshow,onstalled,onsubmit,onsuspend,ontimeupdate,ontoggle,onvolumechange,onwaiting,onauxclick,ongotpointercapture,onlostpointercapture,onpointercancel,onpointerdown,onpointerenter,onpointerleave,onpointermove,onpointerout,onpointerover,onpointerup,onbeforecopy,onbeforecut,onbeforepaste,oncopy,oncut,onpaste,onsearch,onselectstart,onwheel,onwebkitfullscreenchange,onwebkitfullscreenerror"
+     s ClassOref=##class(%ClassDefinition).%OpenId(ParentClassName)
+     if ClassOref {
+       s ConstructMethod=$p(ParentClassName,".",$l(ParentClassName,"."))
+       s count=ClassOref.Properties.Count() 
+       for i=1:1:count {
+            s nam=ClassOref.Properties.GetAt(i).Name
+            continue:'$d(^oddDEF(ParentClassName,"a",nam,57))
+            continue:^oddDEF(ParentClassName,"a",nam,57)'=1
+            w "  var "_ClassOref.Properties.GetAt(i).Name_" "
+            if $d(^oddDEF(ParentClassName,"a",nam,31)) {
+                 s val=^oddDEF(ParentClassName,"a",nam,31)
+                 if val="""null""" w "=null;"_$c(13,10)  continue
+                 s typ=""
+                 if $d(^oddDEF(ParentClassName,"a",nam,5)) {
+                    s typ=^oddDEF(ParentClassName,"a",nam,5)
+                    if $e(typ,1,1)="%",$l(typ,".")=1 {
+                       s typ=$REPLACE(typ,"%","%Library.")
+                    }
+                 }   
+                 if typ="" {
+                     if $l(typ ," ")=1 { w "="_$e(val,2,$l(val)-1)_";"_$c(13,10)  continue }
+                    try {   x "w "_val   }catch(e){  w "="_$e(val,2,$l(val)-1)_";"_$c(13,10)  continue }
+                 }
+                 
+                 if typ="%Library.Boolean" {
+                      if $e(val,1,1)="""" {
+                         w "=" 
+                         try {   x "w "_val   }catch(e){  if +val=1 { w "=true"  }else     { w "=false" }   }
+                      }else {
+                        if val=1 { w "=true"  }else     { w "=false" }
+                      }
+                 }elseif  typ="%Library.Integer" {
+                     if $e(val,1,1)="""" {
+                         w "=" 
+                         try {   x "w "_val   }catch(e){  s val=+val  w val }
+                      } else {
+                          s val=+val  w val
+                      } 
+                 }else{
+	                 
+                     if $e(val,1,1)'="""" {
+                           w "=""" 
+                           try {   x "w "_val   }catch(e){  w val   }
+                           w """"
+                      }else {
+                         w "="_val
+                      } 
+                 }
+            }
+            w ";"_$c(13,10) 
+       }
+       s ConstructMethodIndex=""
+       s count=ClassOref.Methods.Count()
+       for i=1:1:count {
+            if (MethodName=""){
+               continue:$l(ClassOref.Methods.GetAt(i).Name,"OnPage")'=1
+               continue:ClassOref.Methods.GetAt(i).Name="OnPreHTTP"
+               continue:ClassOref.Methods.GetAt(i).Name="OnPostHTTP"
+               continue:ClassOref.Methods.GetAt(i).Name="getLibOne"
+               continue:ClassOref.Methods.GetAt(i).Name="GetJSMethodFromClientMethod"
+               continue:ClassOref.Methods.GetAt(i).Name="readJSFunctionFromCacheClass"
+            }else{
+                continue:ClassOref.Methods.GetAt(i).Name'=MethodName   
+            }
+           /// [ ServerOnly = 1 ]
+           // continue:'$d(^oddDEF(ParentClassName,"m",ClassOref.Methods.GetAt(i).Name,59))
+           // continue:^oddDEF(ParentClassName,"m",ClassOref.Methods.GetAt(i).Name,59)'=1
+           
+           /// [ WebMethod ]
+           continue:'$d(^oddDEF(ParentClassName,"m",ClassOref.Methods.GetAt(i).Name,51))
+           continue:^oddDEF(ParentClassName,"m",ClassOref.Methods.GetAt(i).Name,51)'=1
+          
+          if $ZCVT(ClassOref.Methods.GetAt(i).Name,"L")=$ZCVT(ConstructMethod,"L"){
+             s ConstructMethodIndex=i
+             continue    
+          }
+          
+          if DrawDescript=1 {
+             if $l(ClassOref.Methods.GetAt(i).Description)>0,ParentClassName'=##this{
+                w !,"/*",!
+                w $replace(ClassOref.Methods.GetAt(i).Description,"*/","-/-")
+                w !,"*/"
+             }
+          }
+          // Получаем JS представление Cache клиент метода
+           if ClassOref.Methods.GetAt(i).Language="javascript" {
+               w !,"var "_ClassOref.Methods.GetAt(i).Name_"=function("
+               s param=ClassOref.Methods.GetAt(i).FormalSpec
+               for ind=1:1:$l(param,","){
+                   s subParam=$p(param,",",ind)
+                   s subParam=$p(subParam,":",1)
+                   s subParam=$p(subParam,"=",1)
+                   w:ind'=1 ","
+                   w subParam
+               }
+               w "){",!
+                 d ..ExecFrag(ClassOref.Methods.GetAt(i).Code,"/*(",")*/")
+                 // w ClassOref.Methods.GetAt(i).Code
+                 w !,"};"
+                
+            }
+           // Получаем JS представление Cache класс метода
+           if ClassOref.Methods.GetAt(i).Language="cache" {
+                   w !,"var "_ClassOref.Methods.GetAt(i).Name_"=function(){",!
+                   ; if $d(^oddDEF(ParentClassName,"m",ClassOref.Methods.GetAt(i).Name,42)){ w "return "}
+                   ; s WEVENT=$$$cspEncode(%session.Key,$lb(ParentClassName_"."_ClassOref.Methods.GetAt(i).Name))
+                   s WEVENT=ParentClassName_"."_ClassOref.Methods.GetAt(i).Name
+                  if '$d(^oddDEF(ParentClassName,"m",ClassOref.Methods.GetAt(i).Name,42)) {
+                        &js< try { var res=cspHttpServerMethod('#(WEVENT)#',arguments); eval(res); }catch (e) { return res}>
+                  } Else {
+                     w "   return cspHttpServerMethod('"_WEVENT_"',arguments);"
+                  }
+                  w !,"};"
+           }
+                
+         }
+         // После отрисовки функций, создаем конструктор( если конечно он встретился ранее)
+         if ConstructMethodIndex'="" {
+           s i=ConstructMethodIndex
+           if ClassOref.Methods.GetAt(i).Language="javascript" {
+              d ..ExecFrag(ClassOref.Methods.GetAt(i).Code,"/*(",")*/")
+           }
+           if ClassOref.Methods.GetAt(i).Language="cache" {
+              ; s WEVENT=$$$cspEncode(%session.Key,$lb(ParentClassName_"."_ClassOref.Methods.GetAt(i).Name))
+              s WEVENT=ParentClassName_"."_ClassOref.Methods.GetAt(i).Name
+              w " cspHttpServerMethod('"_WEVENT_"',arguments);"
+           }
+         }
+       }
+       q ""
+]]></Implementation>
+</Method>
+
+<Method name="popupwindow">
+<Description>
+Открытие модальных окон в центре экрана
+popupwindow("SMS.SendOneSMS.cls",'Отправка SMS',500,360);</Description>
+<FormalSpec>url,title,w,h,params</FormalSpec>
+<Language>javascript</Language>
+<WebMethod>1</WebMethod>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+        var y = window.outerHeight / 2 + window.screenY - ( h / 2)
+        var x = window.outerWidth / 2 + window.screenX - ( w / 2)
+        var myPopup=null;
+        var myPopupUrl=null;
+        for (var k in windowhashtablist) {
+          if (windowhashtablist.hasOwnProperty(k)) {
+            if (k==title) {
+               myPopup=windowhashtablist[k]['window'];
+               myPopupUrl=windowhashtablist[k]['url'];
+            }
+          }
+        }
+        if (myPopup!=null){
+           if (myPopup.closed){
+              myPopup=null;
+           }else{
+              if (myPopupUrl==url){	           
+                 myPopup.focus();
+                 return myPopup;
+              }
+           } 
+        }
+        if (typeof(params) == "undefined") { 
+           myPopup=window.open(url, title, 'toolbar=no, location=no, directories=no, status=no, menubar=no, scrollbars=yes, resizable=no, copyhistory=no, width=' + w + ', height=' + h + ', top=' + y + ', left=' + x);
+        }else{
+           myPopup=window.open(url, title, params+', width=' + w + ', height=' + h + ', top=' + y + ', left=' + x);
+        }  
+        
+	   
+	 try { 
+        myPopup.addEventListener('DOMContentLoaded', function(){
+         ContentHtml= myPopup.document.getElementsByTagName('html')[0];
+         var script=myPopup.document.createElement('script');
+         script.innerHTML="";
+         script.innerHTML+=" try { "
+         script.innerHTML+="   cspHttpServerMethod     = window.opener.SendServer; ";
+         script.innerHTML+="   cspCallHttpServerMethod = window.opener.cspCallHttpServerMethod; ";
+           script.innerHTML+=' /*(   w ..DrawFunName()   )*/ ';
+           script.innerHTML+=" document.addEventListener('keydown', function(event){ "
+           script.innerHTML+="      var FoundOneJobLib=false ;"
+           script.innerHTML+="      var ScriptList=document.getElementsByTagName('script'); "
+           script.innerHTML+="       for (var ind in ScriptList){ "
+           script.innerHTML+="          var str=ScriptList[ind].src+'';"
+           script.innerHTML+="         if(str=='undefined'){continue;}"
+           script.innerHTML+="         if(str==''){continue;}"
+           script.innerHTML+="         if (str.indexOf('HTML.Bind.js.cls')==-1){continue;}   "
+           script.innerHTML+="         FoundOneJobLib=true;  "
+           script.innerHTML+="         if (str.indexOf('include=')!=-1){ FoundOneJobLib=false; continue; }    "
+           script.innerHTML+="         break;  "
+           script.innerHTML+="     }"
+         // закрываем окно если нажали на F5 и неподключена библиотека HTML.OneJob.js.cls 
+           script.innerHTML+="     if (FoundOneJobLib==false){  if (event.keyCode == 116) { self.close(); } }"
+           script.innerHTML+="     if (FoundOneJobLib==false){  if (event.keyCode == 27) { self.close(); } }"
+           script.innerHTML+=" },true); "
+         // -------------------------------
+         script.innerHTML+=" } catch (err) { }"
+         ContentHtml.appendChild(script);  
+
+         
+         var script2=myPopup.document.createElement('script');
+         script2.language="JavaScript";
+         script2.type="text/javascript";
+         script2.src="HTML.Bind.js.cls/?cls=1&include="+encodeURIComponent(url);
+         ContentHtml.appendChild(script2);  
+       },true)
+     } catch (err) { }
+     
+     windowhashtablist[title]={'url':url, 'window': myPopup};
+     return myPopup;
+]]></Implementation>
+</Method>
+
+<Method name="DrawFunName">
+<Description>
+передаем в дочерний класс функции родительского класса</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ParentClass=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+   // s ParentClass=$SYSTEM.CSP.GetClassName("/"_%ParentClass) 
+       s ParentClass=##this
+       d $system.OBJ.GetDependencies(ParentClass,.included)
+       s ClassParentTmp=""
+       for {
+         s ClassParentTmp=$o(included(ClassParentTmp))
+         q:ClassParentTmp=""
+         if $d(^oddDEF(ClassParentTmp,"m")){
+            s MethodName=""
+            for {
+    	       s MethodName=$o(^oddDEF(ClassParentTmp,"m",MethodName))
+               q:MethodName=""
+               continue:'$d(^oddDEF(ClassParentTmp,"m",MethodName,70))
+               w " "_MethodName_"  = window.opener."_MethodName_"; " 
+            }
+         }
+       }
+   q ""
+]]></Implementation>
+</Method>
+
+<Method name="popupcls">
+<Description>
+Отслеживаем событие закрытия окна</Description>
+<FormalSpec>win,callback</FormalSpec>
+<Language>javascript</Language>
+<WebMethod>1</WebMethod>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+ 
+          !function  popupclscheck () { 
+            if(win.closed){ 
+              callback.call(); 
+              return; 
+           } 
+           setTimeout(popupclscheck, 1000); 
+        }();
+]]></Implementation>
+</Method>
+
+<Method name="setCookie">
+<Description>
+записать значение     </Description>
+<FormalSpec>cname,cvalue,exdays</FormalSpec>
+<Language>javascript</Language>
+<WebMethod>1</WebMethod>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[ var d = new Date(); d.setTime(d.getTime() + (exdays)); var expires = 'expires='+d.toUTCString(); document.cookie = cname + '=' + cvalue + "; " + expires;
+]]></Implementation>
+</Method>
+
+<Method name="delCookie">
+<Description>
+Удалить значение</Description>
+<FormalSpec>name</FormalSpec>
+<Language>javascript</Language>
+<WebMethod>1</WebMethod>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[ setCookie(name, '', { expires: -1  })
+]]></Implementation>
+</Method>
+
+<Method name="getCookie">
+<Description>
+Получить значение</Description>
+<FormalSpec>cname</FormalSpec>
+<Language>javascript</Language>
+<WebMethod>1</WebMethod>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[ var name = cname + '='; var ca = document.cookie.split(';'); for(var i=0; i!=ca.length; i++) { var c = ca[i]; while (c.charAt(0)==' ') c = c.substring(1); if (c.indexOf(name) == 0) return c.substring(name.length,c.length); } return '';
+]]></Implementation>
+</Method>
+
+<Method name="AutoRus">
+<Description>
+Автоматическая конвертация на рус. расклад</Description>
+<FormalSpec>str</FormalSpec>
+<Language>javascript</Language>
+<WebMethod>1</WebMethod>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+   replacer = {
+            "q":"й", "w":"ц"  , "e":"у" , "r":"к" , "t":"е", "y":"н", "u":"г", 
+            "i":"ш", "o":"щ", "p":"з" , "[":"х" , "]":"ъ", "a":"ф", "s":"ы", 
+            "d":"в" , "f":"а"  , "g":"п" , "h":"р" , "j":"о", "k":"л", "l":"д", 
+            ";":"ж" , "'":"э"  , "z":"я", "x":"ч", "c":"с", "v":"м", "b":"и", 
+            "n":"т" , "m":"ь"  , ",":"б" , ".":"ю" , "/":"."
+        };       
+        
+        for(i=0; i < str.length; i++){                        
+            if( replacer[ str[i].toLowerCase() ] != undefined){
+                                
+                if(str[i] == str[i].toLowerCase()){
+                    replace = replacer[ str[i].toLowerCase() ];    
+                } else if(str[i] == str[i].toUpperCase()){
+                    replace = replacer[ str[i].toLowerCase() ].toUpperCase();
+                } 
+                
+                str = str.replace(str[i], replace);
+            }
+        }
+        
+       return str;
+]]></Implementation>
+</Method>
+
+<Method name="getSelectValues">
+<Description>
+Получить список выбранных элементов в Select</Description>
+<FormalSpec>select</FormalSpec>
+<Language>javascript</Language>
+<WebMethod>1</WebMethod>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+  var result = [];
+  var options = select && select.options;
+  var opt;
+  for (var i=0, iLen=options.length; i<iLen; i++) {
+    opt = options[i];
+    if (opt.selected) {
+       result.push(opt.value || opt.text);
+    }
+  }
+  return result;
+]]></Implementation>
+</Method>
+
+<Method name="ParseDFM">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>NameObj={##This_":Form"}</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+   s StyleProperty("Left")="left"
+   s StyleProperty("Top")="top"
+   s StyleProperty("Width")="Width"
+   s StyleProperty("Height")="Height"
+   ; s StyleProperty("Font.Color")="color"
+   s StyleProperty("Color")="Color"
+   
+
+   s TegList("TButton")="button"
+   s TegList("TForm1")="div"
+   s TegList("TEdit")="input"
+   s TegList("Text")="input"
+   s TegList("TCombobox")="select"
+
+
+
+
+   if $l(NameObj,":")=1,$e(NameObj,1,2)'=".."{  s Name=".."_NameObj  }
+   if $e(NameObj,1,2)=".." {  s ClassName=##This,XdataName=$e(NameObj,3,$l(NameObj))
+   }else{                  s ClassName=$p(NameObj,":",1),XdataName=$p(NameObj,":",2)  }
+   s GL="^oddDEF("""_ClassName_""",""x"","""_XdataName_""",21)"  
+  
+  
+   s Lavel = 0
+   s CountSubLine=0
+   s GlIndex=""
+   for { 
+       s GlIndex=$o(@GL@(GlIndex))
+       q:GlIndex=""  
+       continue:GlIndex=1  
+       q:GlIndex=@GL   
+       s val=@GL@(GlIndex)
+       s nam="object"
+       if $e($tr(val," ",""),1,$l(nam))=nam {
+          s tmp=$p(val,"object ",2)
+	      s ObjectClass=$p(tmp,": ",2)
+	      if $d(TegList(ObjectClass)){
+		     s ObjectClass=TegList(ObjectClass)   
+	      }
+	      
+	      s ObjectName=$p(tmp,": ",1)
+	      if $d(EndTeg(Lavel)){
+	          w ">"
+	          k EndTeg(Lavel)
+          }
+	      s Lavel=Lavel+1
+          s Object(Lavel)=ObjectClass
+          s ObjectID(Lavel)=ObjectName
+          s EndTeg(Lavel)=0
+	      w !,"<"_ObjectClass
+          w !," name="""_ObjectName_""""_"     "
+	      w !," id="""_ObjectName_""""_"     "
+	      continue
+       }
+       s nam="end"
+       if $e($tr(val," ",""),1,$l(nam))=nam {
+	     s ObjectClass=Object(Lavel)
+	     if $d(EndTeg(Lavel))   {
+	             if $d(StyleDiv(Lavel))   {
+		            w "  Style=""position:absolute; overflow:hidden;  "_StyleDiv(Lavel)_""""
+		            k StyleDiv(Lavel)
+	             }
+		         w ">"
+                 k EndTeg(Lavel)
+	     }
+         ; Если есть "Caption" и "Text"  тогда выводим "Text" 
+         if $d(TextCaption(Lavel))  w TextCaption(Lavel)  k TextCaption(Lavel)
+	     w !,"</"_ObjectClass_">",!	
+	     w "<script> var "_ObjectID(Lavel)_"=document.getElementById('"_ObjectID(Lavel)_"');</script>",!
+	     s Lavel=Lavel-1
+	     continue
+       }
+       s Name=$p(val," = ",1)
+       s Name=$TR(Name," ","")
+       s Value=$p(val," = ",2)
+       if $e(Value,1,1)="'", $e(Value,$l(Value),$l(Value))="'"{
+	      s Value=$e(Value,2,$l(Value)-1)
+       }
+       
+       s nam="On"
+       if $e($tr(val," ",""),1,$l(nam))=nam {
+	     w !," "_$TR(Name," ","")_"="""_Value_"()"" "
+	     continue
+       }
+       s nam="Caption"
+       if Name=nam {
+         s TextCaption(Lavel)=Value	       
+	     continue
+       }
+       s nam="Text"
+       if Name=nam {
+         w " value="""_Value_""" "
+	     continue
+       }
+       
+       if $d(StyleProperty(Name)){
+	      if $d(StyleDiv(Lavel)){
+		      s StyleDiv(Lavel)=StyleDiv(Lavel)_";"
+	      }else{
+		      s StyleDiv(Lavel)=""
+	      } 
+	      s StyleDiv(Lavel)=StyleDiv(Lavel)_" "_StyleProperty(Name)_" : "_Value_" "
+	      continue
+       }
+       
+       w !," "_Name_"="""_Value_""" "
+    }
+    q ""
+]]></Implementation>
+</Method>
+</Class>
+</Export>
