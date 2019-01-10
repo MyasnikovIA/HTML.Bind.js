@@ -27,7 +27,7 @@ Class User.del333 Extends %CSP.Page
                 try { var res=#server(Dogovor.Bill.ProntPdf.SchetOne.ShowReportWeb('pdf',JSON.stringify(texts)))#;  eval(res); }catch (e) {console.log(res);}   ; 
               }   
             </script> 
-            &lt;button   onclick='GerReportFile()' &gt;GerReportFile&lt;/button&gt; 
+            &lt;button  onclick='GerReportFile()' &gt; GerReportFile &lt;/button&gt; 
      &gt; 
   Quit $$$OK
 }
