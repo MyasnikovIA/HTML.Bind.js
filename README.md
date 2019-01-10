@@ -32,7 +32,7 @@ Class User.del333 Extends %CSP.Page
                 }   ; 
               }   
             </script> 
-            &lt;button  onclick='GerReportFile()' &gt; GerReportFile &lt;/button&gt; 
+            <button  onclick='GerReportFile()' > GerReportFile </button> 
      > 
   Quit $$$OK
 }
