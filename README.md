@@ -5,5 +5,5 @@
 
 Подключение:
 <pre>
-<script language="JavaScript" type="text/javascript" src="#($SYSTEM.CSP.GetDefaultApp($ZU(5)))#/#($zcvt("HTML.Bind.js","O","URL"))#.cls"></script>  
+<script type="text/javascript" src="#($SYSTEM.CSP.GetDefaultApp($ZU(5)))#/#($zcvt("HTML.Bind.js","O","URL"))#.cls"></script>  
 </pre>
