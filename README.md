@@ -19,8 +19,8 @@ Class User.del333 Extends %CSP.Page
 {
    ClassMethod OnPage() As %Status
    {
-      &html&lt;
-           &lt;script language='JavaScript' type='text/javascript' src='#($SYSTEM.CSP.GetDefaultApp($ZU(5)))#/#($zcvt("HTML.Bind.js","O","URL"))#.cls' &gt; &lt;/script&gt;   
+      &html<
+           <script language='JavaScript' type='text/javascript' src='#($SYSTEM.CSP.GetDefaultApp($ZU(5)))#/#($zcvt("HTML.Bind.js","O","URL"))#.cls' > </script>   
            <script language='javascript'> 
               GerReportFile=function(){ 
                 var texts=['param1','param2','param3']; 
@@ -33,7 +33,7 @@ Class User.del333 Extends %CSP.Page
               }   
             </script> 
             &lt;button  onclick='GerReportFile()' &gt; GerReportFile &lt;/button&gt; 
-     &gt; 
+     > 
   Quit $$$OK
 }
 
