@@ -20,11 +20,16 @@ Class User.del333 Extends %CSP.Page
    ClassMethod OnPage() As %Status
    {
       &html&lt;
-           <script language='JavaScript' type='text/javascript' src='#($SYSTEM.CSP.GetDefaultApp($ZU(5)))#/#($zcvt("HTML.Bind.js","O","URL"))#.cls'></script>  
+           &lt;script language='JavaScript' type='text/javascript' src='#($SYSTEM.CSP.GetDefaultApp($ZU(5)))#/#($zcvt("HTML.Bind.js","O","URL"))#.cls' &gt; &lt;/script&gt;   
            <script language='javascript'> 
               GerReportFile=function(){ 
                 var texts=['param1','param2','param3']; 
-                try { var res=#server(Dogovor.Bill.ProntPdf.SchetOne.ShowReportWeb('pdf',JSON.stringify(texts)))#;  eval(res); }catch (e) {console.log(res);}   ; 
+                try { 
+                    var res=#server(Dogovor.Bill.ProntPdf.SchetOne.ShowReportWeb('pdf',JSON.stringify(texts)))#;
+                    eval(res);
+                }catch (e) {
+                    console.log(res);
+                }   ; 
               }   
             </script> 
             &lt;button  onclick='GerReportFile()' &gt; GerReportFile &lt;/button&gt; 
